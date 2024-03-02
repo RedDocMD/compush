@@ -1,5 +1,9 @@
-CPP := "clang++-14"
+CPP := if os() == "macos" { "clang++" } else { "clang++-14" }
+CFLAGS := "-Wall -std=c++17 " + `pkg-config --cflags glew` + " " + `pkg-config --cflags glfw3` + " " + `pkg-config --cflags libpng`
+LIBFLAGS := `pkg-config --libs glew` + " " + `pkg-config --libs glfw3` + " " + `pkg-config --libs libpng`
+OPENGL := if os() == "macos" { " -framework OpenGL" } else { "" }
+LDFLAGS := LIBFLAGS + OPENGL
 
 raytrace:
-	{{CPP}} -I/usr/include/libpng16 -Wall -std=c++17 -o raytrace raytrace.cpp -lglfw -lpng16 -L/usr/lib64 -lGLEW -lGL -lX11 -lGLU
+	{{CPP}} {{CFLAGS}} -o raytrace raytrace.cpp {{LDFLAGS}}
 	./raytrace
