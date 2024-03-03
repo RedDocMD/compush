@@ -1,85 +1,14 @@
+#include "util.hpp"
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-#include <array>
 #include <cstdio>
 #include <cstring>
-#include <fstream>
 #include <iostream>
 #include <png.h>
 #include <stdexcept>
-#include <string>
-#include <vector>
 
 constexpr int img_width = 512;
 constexpr int img_height = 512;
-
-std::string readFile(const std::string &name) {
-    std::ifstream infile(name, std::ios::in | std::ios::ate);
-    if (infile.fail())
-        throw std::runtime_error("File opening failed: " + name);
-    size_t size = infile.tellg();
-    std::string inp(size, '\0');
-    infile.seekg(0);
-    if (!infile.read(inp.data(), size))
-        throw std::runtime_error("File reading failed: " + name);
-    return inp;
-}
-
-void printShaderInfoLog(GLuint shader_index) {
-    GLint size;
-    glGetShaderiv(shader_index, GL_INFO_LOG_LENGTH, &size);
-    std::string info(size, '\0');
-    int actual_length;
-    glGetShaderInfoLog(shader_index, size, &actual_length, info.data());
-    printf("shader info log for GL index %u:\n%s\n", shader_index,
-           info.c_str());
-}
-
-GLuint loadShader(const std::string &name, GLuint shader_type) {
-    auto data = readFile(name);
-    auto shader_idx = glCreateShader(shader_type);
-    std::array<const char *, 1> dataArr{data.data()};
-    glShaderSource(shader_idx, 1, dataArr.data(), NULL);
-    glCompileShader(shader_idx);
-
-    int params = -1;
-    glGetShaderiv(shader_idx, GL_COMPILE_STATUS, &params);
-    if (GL_TRUE != params) {
-        fprintf(stderr, "ERROR: GL shader index %i did not compile\n",
-                shader_idx);
-        printShaderInfoLog(shader_idx);
-        throw std::runtime_error("shader compilation failed: " + name);
-    }
-
-    return shader_idx;
-}
-
-void printProgramInfoLog(GLuint program) {
-    GLint size;
-    glGetShaderiv(program, GL_INFO_LOG_LENGTH, &size);
-    std::string info(size, '\0');
-    int actual_length;
-    glGetProgramInfoLog(program, size, &actual_length, info.data());
-    printf("program info log for GL index %u:\n%s", program, info.c_str());
-}
-
-GLuint createProgram(const std::vector<GLuint> &shaders) {
-    GLuint program = glCreateProgram();
-    for (auto shader : shaders)
-        glAttachShader(program, shader);
-    glLinkProgram(program);
-
-    int params = -1;
-    glGetProgramiv(program, GL_LINK_STATUS, &params);
-    if (GL_TRUE != params) {
-        fprintf(stderr, "ERROR: could not link shader programm GL index %u\n",
-                program);
-        printProgramInfoLog(program);
-        throw std::runtime_error("program creation failed");
-    }
-
-    return program;
-}
 
 void writeToPng(const std::string &filename, const std::vector<GLubyte> &data) {
     png_image img;
@@ -95,55 +24,6 @@ void writeToPng(const std::string &filename, const std::vector<GLubyte> &data) {
     auto err_mask = img.warning_or_error & 0x3;
     if (err_mask != 0)
         throw std::runtime_error(img.message);
-}
-
-static void printGlError() {
-    GLenum err;
-    while ((err = glGetError()) != GL_NO_ERROR) {
-        switch (err) {
-        case GL_INVALID_ENUM:
-            std::cerr << "GL_INVALID_ENUM: An unacceptable value is specified "
-                         "for an enumerated "
-                         "argument. The offending command is ignored and has "
-                         "no other side effect than to set the error flag\n";
-            break;
-        case GL_INVALID_VALUE:
-            std::cerr << "GL_INVALID_VALUE: A numeric argument is out of "
-                         "range. The offending command is ignored and has no "
-                         "other side effect than to set the error flag\n";
-            break;
-        case GL_INVALID_OPERATION:
-            std::cerr << "GL_INVALID_OPERATION: The specified operation is not "
-                         "allowed in the current state. The offending command "
-                         "is ignored and has no other side effect than to set "
-                         "the error flag\n";
-            break;
-        case GL_INVALID_FRAMEBUFFER_OPERATION:
-            std::cerr
-                << "GL_INVALID_FRAMEBUFFER_OPERATION: The framebuffer object "
-                   "is not complete. The offending command is ignored and has "
-                   "no other side effect than to set the error flag\n";
-            break;
-        case GL_OUT_OF_MEMORY:
-            std::cerr << "GL_OUT_OF_MEMORY: The framebuffer object is not "
-                         "complete. The offending command is ignored and has "
-                         "no other side effect than to set the error flag\n";
-            break;
-        case GL_STACK_UNDERFLOW:
-            std::cerr << "GL_STACK_UNDERFLOW: An attempt has been made to "
-                         "perform an operation that would cause an internal "
-                         "stack to underflow\n";
-            break;
-        case GL_STACK_OVERFLOW:
-            std::cerr
-                << "GL_STACK_OVERFLOW: An attempt has been made to perform an "
-                   "operation that would cause an internal stack to overflow\n";
-            break;
-        default:
-            std::cerr << "Unknown error\n";
-        }
-        std::flush(std::cerr);
-    }
 }
 
 int main(int argc, char **argv) {
@@ -169,10 +49,10 @@ int main(int argc, char **argv) {
     GLuint tex_output;
     glGenTextures(1, &tex_output);
     glBindTexture(GL_TEXTURE_2D, tex_output);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTextureStorage2D(tex_output, 1, GL_RGBA8UI, tex_w, tex_h);
