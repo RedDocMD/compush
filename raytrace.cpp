@@ -15,6 +15,8 @@ constexpr int img_height = 512;
 
 std::string readFile(const std::string &name) {
     std::ifstream infile(name, std::ios::in | std::ios::ate);
+    if (infile.fail())
+        throw std::runtime_error("File opening failed: " + name);
     size_t size = infile.tellg();
     std::string inp(size, '\0');
     infile.seekg(0);
@@ -70,7 +72,7 @@ GLuint createProgram(const std::vector<GLuint> &shaders) {
     int params = -1;
     glGetProgramiv(program, GL_LINK_STATUS, &params);
     if (GL_TRUE != params) {
-        fprintf(stderr, "ERROR: could not link shader programme GL index %u\n",
+        fprintf(stderr, "ERROR: could not link shader programm GL index %u\n",
                 program);
         printProgramInfoLog(program);
         throw std::runtime_error("program creation failed");
@@ -79,12 +81,69 @@ GLuint createProgram(const std::vector<GLuint> &shaders) {
     return program;
 }
 
-void writeToPng(const std::string &filename, const std::vector<float> &data) {
+void writeToPng(const std::string &filename, const std::vector<GLubyte> &data) {
     png_image img;
     memset(&img, 0, sizeof(img));
     img.version = PNG_IMAGE_VERSION;
     img.width = img_width;
     img.height = img_height;
+    img.format = PNG_FORMAT_RGBA;
+    img.colormap_entries = 0;
+
+    png_image_write_to_file(&img, filename.c_str(), false, data.data(),
+                            img_width * 4, nullptr);
+    auto err_mask = img.warning_or_error & 0x3;
+    if (err_mask != 0)
+        throw std::runtime_error(img.message);
+}
+
+static void printGlError() {
+    GLenum err;
+    while ((err = glGetError()) != GL_NO_ERROR) {
+        switch (err) {
+        case GL_INVALID_ENUM:
+            std::cerr << "GL_INVALID_ENUM: An unacceptable value is specified "
+                         "for an enumerated "
+                         "argument. The offending command is ignored and has "
+                         "no other side effect than to set the error flag\n";
+            break;
+        case GL_INVALID_VALUE:
+            std::cerr << "GL_INVALID_VALUE: A numeric argument is out of "
+                         "range. The offending command is ignored and has no "
+                         "other side effect than to set the error flag\n";
+            break;
+        case GL_INVALID_OPERATION:
+            std::cerr << "GL_INVALID_OPERATION: The specified operation is not "
+                         "allowed in the current state. The offending command "
+                         "is ignored and has no other side effect than to set "
+                         "the error flag\n";
+            break;
+        case GL_INVALID_FRAMEBUFFER_OPERATION:
+            std::cerr
+                << "GL_INVALID_FRAMEBUFFER_OPERATION: The framebuffer object "
+                   "is not complete. The offending command is ignored and has "
+                   "no other side effect than to set the error flag\n";
+            break;
+        case GL_OUT_OF_MEMORY:
+            std::cerr << "GL_OUT_OF_MEMORY: The framebuffer object is not "
+                         "complete. The offending command is ignored and has "
+                         "no other side effect than to set the error flag\n";
+            break;
+        case GL_STACK_UNDERFLOW:
+            std::cerr << "GL_STACK_UNDERFLOW: An attempt has been made to "
+                         "perform an operation that would cause an internal "
+                         "stack to underflow\n";
+            break;
+        case GL_STACK_OVERFLOW:
+            std::cerr
+                << "GL_STACK_OVERFLOW: An attempt has been made to perform an "
+                   "operation that would cause an internal stack to overflow\n";
+            break;
+        default:
+            std::cerr << "Unknown error\n";
+        }
+        std::flush(std::cerr);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -109,17 +168,16 @@ int main(int argc, char **argv) {
     int tex_w = img_width, tex_h = img_height;
     GLuint tex_output;
     glGenTextures(1, &tex_output);
-    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, tex_output);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex_w, tex_h, 0, GL_RGBA,
-                 GL_UNSIGNED_BYTE, NULL);
-    glBindImageTexture(0, tex_output, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTextureStorage2D(tex_output, 1, GL_RGBA8UI, tex_w, tex_h);
+    glBindImageTexture(0, tex_output, 0, GL_FALSE, 0, GL_READ_WRITE,
+                       GL_RGBA8UI);
 
     int work_grp_cnt[3];
     glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &work_grp_cnt[0]);
@@ -139,21 +197,24 @@ int main(int argc, char **argv) {
     glGetIntegerv(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, &work_grp_inv);
     printf("max local work group invocations %i\n", work_grp_inv);
 
-    auto ray_shader = loadShader("raytrace.glsl", GL_COMPUTE_SHADER);
+    auto ray_shader = loadShader("../raytrace.glsl", GL_COMPUTE_SHADER);
     std::vector<GLuint> shaders{ray_shader};
     auto program = createProgram(shaders);
 
     glUseProgram(program);
-    glDispatchCompute((GLuint)tex_w, (GLuint)tex_h, 1);
+    glDispatchCompute(static_cast<GLuint>(tex_w), static_cast<GLuint>(tex_h),
+                      1);
 
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-    std::vector<GLubyte> data(3 * tex_w * tex_h);
-    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, data.data());
+    std::vector<GLubyte> data(4 * tex_w * tex_h, 125);
+    glGetTextureImage(tex_output, 0, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE,
+                      data.size(), data.data());
+    printGlError();
 
-    for (auto b : data)
-        std::cout << static_cast<int>(b) << " ";
-    std::cout << "\n";
+    std::string outPng("out.png");
+    writeToPng("out.png", data);
+    std::cout << "Wrote out to " << outPng << "\n";
 
     glfwTerminate();
 }
