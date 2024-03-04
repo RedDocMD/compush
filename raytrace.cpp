@@ -10,7 +10,8 @@
 constexpr int img_width = 512;
 constexpr int img_height = 512;
 
-void writeToPng(const std::string &filename, const std::vector<GLubyte> &data) {
+static void writeToPng(const std::string &filename,
+                       const std::vector<GLubyte> &data) {
     png_image img;
     memset(&img, 0, sizeof(img));
     img.version = PNG_IMAGE_VERSION;
