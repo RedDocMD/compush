@@ -4,24 +4,9 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
-#include <memory>
 #include <stdexcept>
 
-class DVector {
-public:
-    DVector(size_t len) : ptr_(std::make_unique<double[]>(len)), len_(len) {}
-
-    const double *data() const { return ptr_.get(); }
-    double *data() { return ptr_.get(); }
-    size_t byte_len() const { return len_ * sizeof(double); }
-    size_t len() const { return len_; }
-
-private:
-    std::unique_ptr<double[]> ptr_;
-    size_t len_;
-};
-
-static std::vector<DVector> parse_vectors(const std::string &filename) {
+static std::vector<double> parse_vectors(const std::string &filename) {
     std::ifstream inp(filename);
 
     char magic[6];
@@ -55,18 +40,54 @@ static std::vector<DVector> parse_vectors(const std::string &filename) {
         header.substr(shape_val_pos + 1, shape_val_end - shape_val_pos - 1);
     auto comma_pos = shape_val.find(",");
 
-    int vector_cnt = std::stoi(shape_val.substr(0, comma_pos - 1));
+    int vector_cnt = std::stoi(shape_val.substr(0, comma_pos));
     int vector_dim = std::stoi(shape_val.substr(comma_pos + 2));
 
-    std::vector<DVector> vecs;
-    for (int i = 0; i < vector_cnt; i++) {
-        DVector dv(vector_dim);
-        if (inp.read(reinterpret_cast<char *>(dv.data()), dv.byte_len()).bad())
-            throw std::runtime_error("Failed to read vector from " + filename);
-        vecs.push_back(std::move(dv));
+    std::vector<double> vecs(vector_cnt * vector_dim);
+    if (inp.read(reinterpret_cast<char *>(vecs.data()),
+                 vecs.size() * sizeof(double))
+            .bad()) {
+        throw std::runtime_error("Failed to read vector from " + filename);
     }
 
     return vecs;
+}
+
+static GLuint vectors_to_texture(const std::vector<double> &vec, size_t vec_cnt,
+                                 GLuint loc) {
+    GLuint tex_width = vec.size();
+    GLuint tex_height = vec_cnt;
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTextureStorage2D(tex, 1, GL_RG32F, tex_width, tex_height);
+    glTexSubImage2D(tex, 0, 0, 0, tex_width, tex_height, GL_RG, GL_FLOAT,
+                    vec.data());
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindImageTexture(loc, tex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RG32F);
+    return tex;
+}
+
+static void split_double(std::vector<double> &vec) {
+    constexpr double splitter = (1 << 29) + 1;
+    for (double &a : vec) {
+        double t = a * splitter;
+        float t_hi = t - (t - a);
+        float t_lo = a - t_hi;
+        memcpy(&a, &t_lo, sizeof(t_lo));
+        memcpy(reinterpret_cast<char *>(&a) + sizeof(float), &t_hi,
+               sizeof(t_hi));
+    }
+}
+
+static void join_double(std::vector<double> &vec) {
+    for (double &a : vec) {
+        float t_lo, t_hi;
+        memcpy(&t_lo, &a, sizeof(t_lo));
+        memcpy(&t_hi, reinterpret_cast<char *>(&a) + sizeof(float),
+               sizeof(t_hi));
+        a = static_cast<double>(t_lo) + static_cast<double>(t_hi);
+    }
 }
 
 int main(int argc, char **argv) {
@@ -88,5 +109,6 @@ int main(int argc, char **argv) {
     glewInit();
 
     auto vecs = parse_vectors("../arr.npy");
+    split_double(vecs);
     return 0;
 }
