@@ -154,6 +154,10 @@ int main(int argc, char **argv) {
     glBindImageTexture(dist_loc, dist_tex, 0, GL_FALSE, 0, GL_READ_WRITE,
                        GL_RG32F);
 
+    glUniform1ui(data_cnt_loc, data.cnt);
+    glUniform1ui(query_cnt_loc, query.cnt);
+    glUniform1ui(dim_loc, data.dim);
+
     glDispatchCompute(query.cnt, data.cnt, 1);
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 

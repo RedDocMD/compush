@@ -8,7 +8,7 @@ uniform int query_cnt;
 uniform int dim;
 
 double join(in vec2 fv) {
-	return fv.x + fv.y;
+	return double(fv.x) + double(fv.y);
 }
 
 vec2 split(in double a) {
@@ -32,6 +32,6 @@ void main() {
 	}
 	double val = sqrt(sum);
 	vec2 val_vec = split(val);
-	vec4 pixel = vec4(val_vec.xy, 0, 0);
+	vec4 pixel = vec4(val_vec.x, val_vec.y, 0, 0);
 	imageStore(dist, coord, pixel);
 }
