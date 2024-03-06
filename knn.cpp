@@ -107,8 +107,8 @@ static void join_double(std::vector<double> &vec) {
 }
 
 int main(int argc, char **argv) {
-    std::string data_file = "";
-    std::string query_file = "";
+    std::string data_file = "../data.npy";
+    std::string query_file = "../queries.npy";
 
     if (!glfwInit()) {
         fprintf(stderr, "ERROR: could not start GLFW3\n");
@@ -145,11 +145,14 @@ int main(int argc, char **argv) {
     auto query_loc = glGetUniformLocation(program, "query");
     auto query_cnt_loc = glGetUniformLocation(program, "query_cnt");
     auto dim_loc = glGetUniformLocation(program, "dim");
+    auto dist_loc = glGetUniformLocation(program, "dist");
 
     auto data_tex = vectors_to_texture(data.vec, data.dim, data.cnt, data_loc);
     auto query_tex =
         vectors_to_texture(query.vec, query.dim, query.cnt, query_loc);
-    auto out_tex = make_texture(query.cnt, data.cnt);
+    auto dist_tex = make_texture(query.cnt, data.cnt);
+    glBindImageTexture(dist_loc, dist_tex, 0, GL_FALSE, 0, GL_READ_WRITE,
+                       GL_RG32F);
 
     glDispatchCompute(query.cnt, data.cnt, 1);
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
