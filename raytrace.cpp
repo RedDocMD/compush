@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
     std::vector<GLubyte> data(4 * tex_w * tex_h, 125);
     glGetTextureImage(tex_output, 0, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE,
                       data.size(), data.data());
-    printGlError();
+    handleGlError();
 
     std::string outPng("out.png");
     writeToPng("out.png", data);

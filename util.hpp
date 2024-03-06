@@ -9,4 +9,4 @@ void printShaderInfoLog(GLuint shader_index);
 GLuint loadShader(const std::string &name, GLuint shader_type);
 void printProgramInfoLog(GLuint program);
 GLuint createProgram(const std::vector<GLuint> &shaders);
-void printGlError();
+void handleGlError();

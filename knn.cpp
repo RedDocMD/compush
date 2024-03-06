@@ -6,18 +6,29 @@
 #include <iostream>
 #include <stdexcept>
 
-static std::vector<double> parse_vectors(const std::string &filename) {
-    std::ifstream inp(filename);
+struct vectors {
+    std::vector<double> vec;
+    size_t dim;
+    size_t cnt;
 
-    char magic[6];
+    vectors(std::vector<double> vec, size_t dim, size_t cnt)
+        : vec(std::move(vec)), dim(dim), cnt(cnt) {}
+};
+
+static vectors parse_vectors(const std::string &filename) {
+    std::ifstream inp(filename);
+    if (inp.fail())
+        throw std::runtime_error("Failed to open " + filename);
+
+    char magic[6] = {0};
     char exp_magic[] = "\x93NUMPY";
-    if (inp.read(magic, sizeof(magic)).bad())
+    if (inp.read(magic, sizeof(magic)).fail())
         throw std::runtime_error("Failed to read magic from " + filename);
     if (memcmp(magic, exp_magic, sizeof(magic)) != 0)
         throw std::runtime_error("Magic bytes not matching");
 
     uint8_t version[2];
-    if (inp.read(reinterpret_cast<char *>(version), sizeof(version)).bad())
+    if (inp.read(reinterpret_cast<char *>(version), sizeof(version)).fail())
         throw std::runtime_error("Failed to read version from " + filename);
 
     size_t size_len = version[0] == 1 ? 2 : 4;
@@ -25,12 +36,12 @@ static std::vector<double> parse_vectors(const std::string &filename) {
         uint32_t v2;
         uint16_t v1;
     } read_size = {0};
-    if (inp.read(reinterpret_cast<char *>(&read_size), size_len).bad())
+    if (inp.read(reinterpret_cast<char *>(&read_size), size_len).fail())
         throw std::runtime_error("Failed to read size from " + filename);
     auto size = *reinterpret_cast<uint32_t *>(&read_size);
 
     std::string header(size, '\0');
-    if (inp.read(header.data(), size).bad())
+    if (inp.read(header.data(), size).fail())
         throw std::runtime_error("Failed to read header from " + filename);
 
     auto shape_pos = header.find("shape");
@@ -46,24 +57,29 @@ static std::vector<double> parse_vectors(const std::string &filename) {
     std::vector<double> vecs(vector_cnt * vector_dim);
     if (inp.read(reinterpret_cast<char *>(vecs.data()),
                  vecs.size() * sizeof(double))
-            .bad()) {
+            .fail()) {
         throw std::runtime_error("Failed to read vector from " + filename);
     }
 
-    return vecs;
+    return vectors(std::move(vecs), vector_dim, vector_cnt);
 }
 
-static GLuint vectors_to_texture(const std::vector<double> &vec, size_t vec_cnt,
-                                 GLuint loc) {
-    GLuint tex_width = vec.size();
-    GLuint tex_height = vec_cnt;
+static GLuint make_texture(GLuint width, GLuint height) {
     GLuint tex;
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
-    glTextureStorage2D(tex, 1, GL_RG32F, tex_width, tex_height);
+    glTextureStorage2D(tex, 1, GL_RG32F, width, height);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return tex;
+}
+
+static GLuint vectors_to_texture(const std::vector<double> &vec, size_t vec_dim,
+                                 size_t vec_cnt, GLuint loc) {
+    GLuint tex_width = vec_dim;
+    GLuint tex_height = vec_cnt;
+    auto tex = make_texture(vec_dim, vec_cnt);
     glTexSubImage2D(tex, 0, 0, 0, tex_width, tex_height, GL_RG, GL_FLOAT,
                     vec.data());
-    glBindTexture(GL_TEXTURE_2D, 0);
     glBindImageTexture(loc, tex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RG32F);
     return tex;
 }
@@ -91,6 +107,9 @@ static void join_double(std::vector<double> &vec) {
 }
 
 int main(int argc, char **argv) {
+    std::string data_file = "";
+    std::string query_file = "";
+
     if (!glfwInit()) {
         fprintf(stderr, "ERROR: could not start GLFW3\n");
         return 1;
@@ -108,7 +127,32 @@ int main(int argc, char **argv) {
     glewExperimental = GL_TRUE;
     glewInit();
 
-    auto vecs = parse_vectors("../arr.npy");
-    split_double(vecs);
+    auto data = parse_vectors(data_file);
+    auto query = parse_vectors(query_file);
+    if (data.dim != query.dim)
+        throw std::runtime_error("Data and query vecs don't match dimensions");
+
+    split_double(data.vec);
+    split_double(query.vec);
+
+    auto knn_shader = loadShader("../knn.glsl", GL_COMPUTE_SHADER);
+    std::vector<GLuint> shaders{knn_shader};
+    auto program = createProgram(shaders);
+
+    glUseProgram(program);
+    auto data_loc = glGetUniformLocation(program, "data");
+    auto data_cnt_loc = glGetUniformLocation(program, "data_cnt");
+    auto query_loc = glGetUniformLocation(program, "query");
+    auto query_cnt_loc = glGetUniformLocation(program, "query_cnt");
+    auto dim_loc = glGetUniformLocation(program, "dim");
+
+    auto data_tex = vectors_to_texture(data.vec, data.dim, data.cnt, data_loc);
+    auto query_tex =
+        vectors_to_texture(query.vec, query.dim, query.cnt, query_loc);
+    auto out_tex = make_texture(query.cnt, data.cnt);
+
+    glDispatchCompute(query.cnt, data.cnt, 1);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
     return 0;
 }

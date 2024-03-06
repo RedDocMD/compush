@@ -2,6 +2,7 @@
 #include <array>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 
 std::string readFile(const std::string &name) {
     std::ifstream infile(name, std::ios::in | std::ios::ate);
@@ -71,9 +72,11 @@ GLuint createProgram(const std::vector<GLuint> &shaders) {
     return program;
 }
 
-void printGlError() {
+void handleGlError() {
     GLenum err;
+    bool has_error = false;
     while ((err = glGetError()) != GL_NO_ERROR) {
+        has_error = true;
         switch (err) {
         case GL_INVALID_ENUM:
             std::cerr << "GL_INVALID_ENUM: An unacceptable value is specified "
@@ -118,4 +121,6 @@ void printGlError() {
         }
         std::flush(std::cerr);
     }
+    if (has_error)
+        throw std::runtime_error("OpenGl error");
 }
