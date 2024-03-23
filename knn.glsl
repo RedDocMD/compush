@@ -1,11 +1,9 @@
 #version 430
-layout(local_size_x = 1, local_size_y = 1) in;
-layout(rg32f) uniform image2D data;
-layout(rg32f) uniform image2D queries;
-layout(rg32f) uniform image2D dist;
-uniform int data_cnt;
-uniform int query_cnt;
-uniform int dim;
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+layout(rg32f, binding = 0) uniform image2D data;
+layout(rg32f, binding = 1) uniform image2D queries;
+layout(rg32f, binding = 2) uniform image2D dist;
 
 double join(in vec2 fv) {
 	return double(fv.x) + double(fv.y);
@@ -21,6 +19,7 @@ vec2 split(in double a) {
 
 void main() {
 	ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+	int dim = imageSize(data).x;
 	double sum = 0;
 	for (int i = 0; i < dim; i++) {
 		vec2 qv = imageLoad(queries, ivec2(coord.x, i)).xy;

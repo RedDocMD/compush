@@ -78,8 +78,8 @@ static GLuint vectors_to_texture(const std::vector<double> &vec, size_t vec_dim,
     GLuint tex_width = vec_dim;
     GLuint tex_height = vec_cnt;
     auto tex = make_texture(vec_dim, vec_cnt);
-    glTexSubImage2D(tex, 0, 0, 0, tex_width, tex_height, GL_RG, GL_FLOAT,
-                    vec.data());
+    glTextureSubImage2D(tex, 0, 0, 0, tex_width, tex_height, GL_RG, GL_FLOAT,
+                        vec.data());
     glBindImageTexture(loc, tex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RG32F);
     return tex;
 }
@@ -104,6 +104,15 @@ static void join_double(std::vector<double> &vec) {
                sizeof(t_hi));
         a = static_cast<double>(t_lo) + static_cast<double>(t_hi);
     }
+}
+
+static inline __attribute__((always_inline)) GLint
+get_uniform_location(GLint program, const std::string &name) {
+    auto loc = glGetUniformLocation(program, name.c_str());
+    if (loc == -1)
+        throw std::runtime_error("failed to find location of uniform: " + name);
+    handleGlError();
+    return loc;
 }
 
 int main(int argc, char **argv) {
@@ -140,12 +149,9 @@ int main(int argc, char **argv) {
     auto program = createProgram(shaders);
 
     glUseProgram(program);
-    auto data_loc = glGetUniformLocation(program, "data");
-    auto data_cnt_loc = glGetUniformLocation(program, "data_cnt");
-    auto query_loc = glGetUniformLocation(program, "query");
-    auto query_cnt_loc = glGetUniformLocation(program, "query_cnt");
-    auto dim_loc = glGetUniformLocation(program, "dim");
-    auto dist_loc = glGetUniformLocation(program, "dist");
+    auto data_loc = get_uniform_location(program, "data");
+    auto query_loc = get_uniform_location(program, "queries");
+    auto dist_loc = get_uniform_location(program, "dist");
 
     auto data_tex = vectors_to_texture(data.vec, data.dim, data.cnt, data_loc);
     auto query_tex =
@@ -154,12 +160,17 @@ int main(int argc, char **argv) {
     glBindImageTexture(dist_loc, dist_tex, 0, GL_FALSE, 0, GL_READ_WRITE,
                        GL_RG32F);
 
-    glUniform1ui(data_cnt_loc, data.cnt);
-    glUniform1ui(query_cnt_loc, query.cnt);
-    glUniform1ui(dim_loc, data.dim);
-
     glDispatchCompute(query.cnt, data.cnt, 1);
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+    std::vector<double> dist(data.cnt * query.cnt, -1.0f);
+    glGetTextureImage(dist_tex, 0, GL_RG, GL_FLOAT,
+                      dist.size() * sizeof(double), dist.data());
+    handleGlError();
+    join_double(dist);
+    for (auto d : dist)
+        std::cout << d << " ";
+    std::cout << "\n";
 
     return 0;
 }
