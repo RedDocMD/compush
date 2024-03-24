@@ -22,8 +22,8 @@ void main() {
 	int dim = imageSize(data).x;
 	double sum = 0;
 	for (int i = 0; i < dim; i++) {
-		vec2 qv = imageLoad(queries, ivec2(coord.x, i)).xy;
-		vec2 dv = imageLoad(data, ivec2(coord.y, i)).xy;
+		vec2 qv = imageLoad(queries, ivec2(i, coord.x)).xy;
+		vec2 dv = imageLoad(data, ivec2(i, coord.y)).xy;
 		double qvd = join(qv);
 		double dvd = join(dv);
 		double diff = abs(qvd - dvd);

@@ -80,7 +80,7 @@ static GLuint vectors_to_texture(const std::vector<double> &vec, size_t vec_dim,
     auto tex = make_texture(vec_dim, vec_cnt);
     glTextureSubImage2D(tex, 0, 0, 0, tex_width, tex_height, GL_RG, GL_FLOAT,
                         vec.data());
-    glBindImageTexture(loc, tex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RG32F);
+    glBindImageTexture(loc, tex, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RG32F);
     return tex;
 }
 
