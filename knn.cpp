@@ -1,6 +1,5 @@
+#include "gl.hpp"
 #include "util.hpp"
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -116,25 +115,11 @@ get_uniform_location(GLint program, const std::string &name) {
 }
 
 int main(int argc, char **argv) {
+    if (gl_init())
+        return 1;
+
     std::string data_file = "../data.npy";
     std::string query_file = "../queries.npy";
-
-    if (!glfwInit()) {
-        fprintf(stderr, "ERROR: could not start GLFW3\n");
-        return 1;
-    }
-
-    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-    GLFWwindow *window = glfwCreateWindow(1, 1, "", nullptr, nullptr);
-    if (!window) {
-        fprintf(stderr, "ERROR: could not open window with GLFW3\n");
-        glfwTerminate();
-        return 1;
-    }
-    glfwMakeContextCurrent(window);
-
-    glewExperimental = GL_TRUE;
-    glewInit();
 
     auto data = parse_vectors(data_file);
     auto query = parse_vectors(query_file);
@@ -168,6 +153,7 @@ int main(int argc, char **argv) {
                       dist.size() * sizeof(double), dist.data());
     handleGlError();
     join_double(dist);
+
     for (auto d : dist)
         std::cout << d << " ";
     std::cout << "\n";
