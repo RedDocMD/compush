@@ -7,9 +7,9 @@
 
 #include <GL/gl.h>
 
-int gl_init_headless();
-static inline __attribute__((always_inline)) int gl_init() {
-    return gl_init_headless();
+int gl_init_headless(bool es);
+static inline __attribute__((always_inline)) int gl_init(bool es = false) {
+    return gl_init_headless(es);
 }
 
 #else

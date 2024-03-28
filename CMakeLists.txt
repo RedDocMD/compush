@@ -16,3 +16,7 @@ target_include_directories(raytrace PRIVATE ${GLEW_INCLUDE_DIR} ${PNG_INCLUDE_DI
 add_executable(knn knn.cpp util.cpp gl.cpp)
 target_link_libraries(knn PRIVATE glfw ${GLEW_LIBRARIES} OpenGL::GL OpenGL::EGL gbm)
 target_include_directories(knn PRIVATE ${GLEW_INCLUDE_DIR} ${OPENGL_INCLUDE_DIR})
+
+add_executable(estest estest.cpp util.cpp gl.cpp)
+target_link_libraries(estest PRIVATE glfw ${GLEW_LIBRARIES} OpenGL::GL OpenGL::EGL gbm)
+target_include_directories(estest PRIVATE ${GLEW_INCLUDE_DIR} ${OPENGL_INCLUDE_DIR})

@@ -17,7 +17,7 @@ std::string readFile(const std::string &name) {
 }
 
 void printShaderInfoLog(GLuint shader_index) {
-    GLint size;
+    GLint size = 0;
     glGetShaderiv(shader_index, GL_INFO_LOG_LENGTH, &size);
     std::string info(size, '\0');
     int actual_length;
@@ -29,6 +29,8 @@ void printShaderInfoLog(GLuint shader_index) {
 GLuint loadShader(const std::string &name, GLuint shader_type) {
     auto data = readFile(name);
     auto shader_idx = glCreateShader(shader_type);
+    if (shader_idx == 0)
+        throw std::runtime_error("failed to create shader");
     std::array<const char *, 1> dataArr{data.data()};
     glShaderSource(shader_idx, 1, dataArr.data(), NULL);
     glCompileShader(shader_idx);
@@ -46,7 +48,7 @@ GLuint loadShader(const std::string &name, GLuint shader_type) {
 }
 
 void printProgramInfoLog(GLuint program) {
-    GLint size;
+    GLint size = 0;
     glGetShaderiv(program, GL_INFO_LOG_LENGTH, &size);
     std::string info(size, '\0');
     int actual_length;

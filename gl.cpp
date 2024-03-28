@@ -38,28 +38,13 @@ int gl_init_glfw() {
 
 #else
 
-int gl_init_headless() {
-    // auto fd = open("/dev/dri/renderD128", O_RDWR);
-    // if (fd < 0) {
-    //     perror("Opening /dev/dri/renderD128");
-    //     return 1;
-    // }
-    // auto *gbm = gbm_create_device(fd);
-    // if (!gbm) {
-    //     fprintf(stderr, "Failed to create gdm device\n");
-    //     return 1;
-    // }
-    // auto egl_dpy = eglGetPlatformDisplay(EGL_PLATFORM_GBM_MESA, gbm,
-    // nullptr); if (!egl_dpy) {
-    //     fprintf(stderr, "Failed to get egl platform display\n");
-    //     return 1;
-    // }
-    auto egl_dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    if (!eglInitialize(egl_dpy, nullptr, nullptr)) {
+int gl_init_headless(bool es) {
+    auto display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (!eglInitialize(display, nullptr, nullptr)) {
         fprintf(stderr, "failed to egl initialize\n");
         return 1;
     }
-    std::string egl_extensions_st = eglQueryString(egl_dpy, EGL_EXTENSIONS);
+    std::string egl_extensions_st = eglQueryString(display, EGL_EXTENSIONS);
     if (egl_extensions_st.find("EGL_KHR_create_context") == std::string::npos) {
         fprintf(stderr, "EGL_KHR_create_context not found\n");
         return 1;
@@ -70,30 +55,36 @@ int gl_init_headless() {
         return 1;
     }
 
+    auto config_bit = es ? EGL_OPENGL_ES_BIT : EGL_OPENGL_BIT;
     static std::array<EGLint, 3> config_attribs = {EGL_RENDERABLE_TYPE,
-                                                   EGL_OPENGL_BIT, EGL_NONE};
+                                                   config_bit, EGL_NONE};
     EGLConfig cfg;
     EGLint count;
 
-    if (!eglChooseConfig(egl_dpy, config_attribs.data(), &cfg, 1, &count)) {
+    if (!eglChooseConfig(display, config_attribs.data(), &cfg, 1, &count)) {
         fprintf(stderr, "eglChooseConfig failed\n");
         return 1;
     }
-    if (!eglBindAPI(EGL_OPENGL_API)) {
+
+    auto api = es ? EGL_OPENGL_ES_API : EGL_OPENGL_API;
+    if (!eglBindAPI(api)) {
         fprintf(stderr, "eglBindAPI failed\n");
         return 1;
     }
 
-    static std::array<EGLint, 5> attribs = {
-        EGL_CONTEXT_MAJOR_VERSION, 4, EGL_CONTEXT_MINOR_VERSION, 3, EGL_NONE};
-    auto core_ctx =
-        eglCreateContext(egl_dpy, cfg, EGL_NO_CONTEXT, attribs.data());
-    if (core_ctx == EGL_NO_CONTEXT) {
+    EGLint major = es ? 3 : 4;
+    EGLint minor = es ? 2 : 3;
+    static std::array<EGLint, 5> attribs = {EGL_CONTEXT_MAJOR_VERSION, major,
+                                            EGL_CONTEXT_MINOR_VERSION, minor,
+                                            EGL_NONE};
+    auto context =
+        eglCreateContext(display, cfg, EGL_NO_CONTEXT, attribs.data());
+    if (context == EGL_NO_CONTEXT) {
         fprintf(stderr, "failed to create egl context\n");
         return 1;
     }
 
-    if (!eglMakeCurrent(egl_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, core_ctx)) {
+    if (!eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, context)) {
         fprintf(stderr, "failed to make egl context current\n");
         return 1;
     }
@@ -102,7 +93,10 @@ int gl_init_headless() {
     printf("OpenGL Renderer: %s\n", glGetString(GL_RENDERER));
 
     glewExperimental = GL_TRUE;
-    glewInit();
+    if (glewInit() != GLEW_OK) {
+        fprintf(stderr, "failed to glewInit\n");
+        return 1;
+    }
 
     return 0;
 }
