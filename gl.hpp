@@ -1,11 +1,11 @@
 #pragma once
 
-#include <GL/glew.h>
+// #include <GL/glew.h>
 #define HEADLESS 1
 
 #if HEADLESS
 
-#include <GL/gl.h>
+#include <GLES3/gl32.h>
 
 int gl_init_headless(bool es);
 static inline __attribute__((always_inline)) int gl_init(bool es = false) {

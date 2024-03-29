@@ -92,12 +92,12 @@ int gl_init_headless(bool es) {
     printf("OpenGL Vendor: %s\n", glGetString(GL_VENDOR));
     printf("OpenGL Renderer: %s\n", glGetString(GL_RENDERER));
 
-    glewExperimental = GL_TRUE;
-    auto err = glewInit();
-    if (err != GLEW_OK) {
-        fprintf(stderr, "failed to glewInit: %s\n", glewGetErrorString(err));
-        return 1;
-    }
+    // glewExperimental = GL_TRUE;
+    // auto err = glewInit();
+    // if (err != GLEW_OK) {
+    //     fprintf(stderr, "failed to glewInit: %s\n", glewGetErrorString(err));
+    //     return 1;
+    // }
 
     return 0;
 }
