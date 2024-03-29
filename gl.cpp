@@ -93,8 +93,9 @@ int gl_init_headless(bool es) {
     printf("OpenGL Renderer: %s\n", glGetString(GL_RENDERER));
 
     glewExperimental = GL_TRUE;
-    if (glewInit() != GLEW_OK) {
-        fprintf(stderr, "failed to glewInit\n");
+    auto err = glewInit();
+    if (err != GLEW_OK) {
+        fprintf(stderr, "failed to glewInit: %s\n", glewGetErrorString(err));
         return 1;
     }
 
