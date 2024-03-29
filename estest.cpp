@@ -83,6 +83,26 @@ static void join_double(std::vector<double> &vec) {
     }
 }
 
+static inline __attribute__((always_inline)) GLint
+get_uniform_location(GLint program, const std::string &name) {
+    auto loc = glGetUniformLocation(program, name.c_str());
+    handleGlError();
+    if (loc == -1)
+        throw std::runtime_error("failed to find location of uniform: " + name);
+    return loc;
+}
+
+template <typename T>
+static GLint get_ssbo(T *data, size_t size, GLint bind_point) {
+    GLuint ssbo;
+    glGenBuffers(1, &ssbo);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, bind_point, ssbo);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    return ssbo;
+}
+
 int main() {
     if (gl_init(true))
         return 1;
@@ -95,15 +115,41 @@ int main() {
     if (data.dim != query.dim)
         throw std::runtime_error("Data and query vecs don't match dimensions");
 
-    split_double(data.vec);
-    split_double(query.vec);
-
     auto shader = loadShader("../estest.glsl", GL_COMPUTE_SHADER);
     std::vector<GLuint> shaders{shader};
     auto program = createProgram(shaders);
     glUseProgram(program);
 
-    join_double(data.vec);
-    join_double(query.vec);
+    auto dim_loc = get_uniform_location(program, "dim");
+    auto data_cnt_loc = get_uniform_location(program, "data_cnt");
+
+    glUniform1i(dim_loc, data.dim);
+    glUniform1i(data_cnt_loc, data.cnt);
+
+    GLint dataBufLoc = 0;
+    GLint queriesBufLoc = 1;
+    GLint distBufferLoc = 2;
+
+    get_ssbo(data.vec.data(), data.vec.size() * sizeof(double), queriesBufLoc);
+    get_ssbo(query.vec.data(), query.vec.size() * sizeof(double),
+             queriesBufLoc);
+    auto data_ssbo = get_ssbo<float>(
+        nullptr, data.cnt * query.cnt * sizeof(float), distBufferLoc);
+
+    glDispatchCompute(query.cnt, data.cnt, 1);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, data_ssbo);
+    auto *dist = reinterpret_cast<float *>(glMapBufferRange(
+        GL_SHADER_STORAGE_BUFFER, 0, data.cnt * query.cnt * sizeof(float),
+        GL_MAP_READ_BIT));
+    for (int i = 0; i < query.cnt; i++) {
+        for (int j = 0; j < data.cnt; j++) {
+            printf("%f ", dist[i * data.cnt + j]);
+        }
+        printf("\n");
+    }
+    glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+
     return 0;
 }
